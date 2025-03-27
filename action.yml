@@ -22,9 +22,9 @@ runs:
   using: "composite"
   steps:
     - name: Check is running on Linux
-      if: runner.os != 'Linux'
+      if: ${{ runner.os != 'Linux' }}
       shell: bash
-      run: exit 1
+      run: echo "This action only runs on Linux" && exit 1
 
     - name: Set up JDK
       uses: actions/setup-java@v4
@@ -39,8 +39,7 @@ runs:
       id: cache-godot
       uses: actions/cache@v4
       with:
-        path: |
-          /usr/local/bin/godot
+        path: /usr/local/bin/godot
         key: ${{ runner.os }}-godot-${{ inputs.godot-version }}
 
     - name: Download and extract Godot Engine linux server
@@ -78,7 +77,9 @@ runs:
         wget -q https://github.com/godotengine/godot-builds/releases/download/${{ inputs.godot-version }}-${{ inputs.godot-channel}}/Godot_v${{ inputs.godot-version }}-${{ inputs.godot-channel }}_export_templates.tpz
         unzip Godot_v${{ inputs.godot-version }}-${{ inputs.godot-channel }}_export_templates.tpz
         mkdir -p ~/.local/share/godot/export_templates/${{ inputs.godot-version }}.${{ inputs.godot-channel }}
-        mv templates/* ~/.local/share/godot/export_templates/${{ inputs.godot-version }}.${{ inputs.godot-channel }}
+        if [ -d "templates" ]; then
+          mv templates/* ~/.local/share/godot/export_templates/${{ inputs.godot-version }}.${{ inputs.godot-channel }}
+        fi
         rm -f Godot_v${{ inputs.godot-version }}-${{ inputs.godot-channel }}_linux.x86_64.zip Godot_v${{ inputs.godot-version }}-${{ inputs.godot-channel }}_export_templates.tpz
 
     - name: Set Android SDK path in Godot Editor settings
@@ -95,16 +96,18 @@ runs:
       shell: bash
       if: steps.check-custom-build.outputs.exists != 'true'
       run: |
-        mkdir -p ${{ inputs.working-directory }}/android/plugins
-        mkdir -p ${{ inputs.working-directory }}/android/build
-        touch ${{ inputs.working-directory }}/android/build/.gdignore
-        echo ${{ inputs.godot-version }}.stable >> ${{ inputs.working-directory }}/android/.build_version
-        unzip ~/.local/share/godot/export_templates/${{ inputs.godot-version }}.stable/android_source.zip  -d ${{ inputs.working-directory }}/android/build
+        if [ -f ~/.local/share/godot/export_templates/${{ inputs.godot-version }}.stable/android_source.zip ]; then
+          mkdir -p ${{ inputs.working-directory }}/android/plugins
+          mkdir -p ${{ inputs.working-directory }}/android/build
+          touch ${{ inputs.working-directory }}/android/build/.gdignore
+          echo ${{ inputs.godot-version }}.stable >> ${{ inputs.working-directory }}/android/.build_version
+          unzip ~/.local/share/godot/export_templates/${{ inputs.godot-version }}.stable/android_source.zip -d ${{ inputs.working-directory }}/android/build
+        fi
 
     - name: Open project once to import assets in editor mode
       shell: bash
-      continue-on-error: true # timeout will exit with code 124
-      run: timeout 25 godot --headless --path ${{ inputs.working-directory }} -e
+      continue-on-error: true
+      run: timeout 60 godot --headless --path ${{ inputs.working-directory }} -e
 
     - name: Export
       shell: bash
