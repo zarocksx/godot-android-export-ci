@@ -26,14 +26,20 @@ runs:
       shell: bash
       run: echo "This action only runs on Linux" && exit 1
 
-    - name: Set up JDK
+    - name: Set up JDK 11 (required for Godot Android build)
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: 17
+        java-version: 11
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
+
+    - name: Install required Android SDK packages
+      shell: bash
+      run: |
+        yes | sdkmanager --licenses
+        sdkmanager "platforms;android-31" "build-tools;31.0.0" "platform-tools"
 
     - name: Cache Godot files
       id: cache-godot
@@ -91,6 +97,8 @@ runs:
         echo "export/android/android_sdk_path = \"/usr/local/lib/android/sdk\"" >> ~/.config/godot/editor_settings-4.tres
         echo "export/android/shutdown_adb_on_exit = true" >> ~/.config/godot/editor_settings-4.tres
         echo "export/android/force_system_user = false" >> ~/.config/godot/editor_settings-4.tres
+        echo "export/android/target_sdk_version = 31" >> ~/.config/godot/editor_settings-4.tres
+        echo "export/android/min_sdk_version = 21" >> ~/.config/godot/editor_settings-4.tres
 
     - name: Install Android build template
       shell: bash
@@ -102,6 +110,13 @@ runs:
           touch ${{ inputs.working-directory }}/android/build/.gdignore
           echo ${{ inputs.godot-version }}.stable >> ${{ inputs.working-directory }}/android/.build_version
           unzip ~/.local/share/godot/export_templates/${{ inputs.godot-version }}.stable/android_source.zip -d ${{ inputs.working-directory }}/android/build
+        fi
+
+    - name: Ensure AndroidManifest.xml is correct
+      shell: bash
+      run: |
+        if [ -f "${{ inputs.working-directory }}/android/build/AndroidManifest.xml" ]; then
+          sed -i 's/<activity android:name="org.godotengine.godot.Godot">/<activity android:name="org.godotengine.godot.Godot" android:exported="true">/' ${{ inputs.working-directory }}/android/build/AndroidManifest.xml
         fi
 
     - name: Open project once to import assets in editor mode
